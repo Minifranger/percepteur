@@ -7,19 +7,34 @@ from functools import wraps
 
 from percepteur.application import Application
 from percepteur.factory import Factory
+from workout.image import MSSImage
+from workout.labelimg.data import Data
+from workout.vision.detection import Detection
+from workout.vision.trained_model import TrainedModel
 
 logger = logging.getLogger(__name__)
 
 
+#DenseToDenseSetOperation : exporter les object detector dans une nouvelle classe detector, ne garder que le recording ici
 class Recorder(Factory):
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
         Application.factory(**kwargs)
+        TrainedModel.factory(**kwargs)
+        Detection.factory(**kwargs)
         RecorderStats.factory(**kwargs)
 
     @property
     def application(self):
         return Application.instance
+
+    @property
+    def trained_model(self):
+        return TrainedModel.instance
+
+    @property
+    def detection(self):
+        return Detection.instance
 
     @property
     def recorder_stats(self):
@@ -60,18 +75,33 @@ class Recorder(Factory):
 
     @Decorators.record(record_stats=True)
     @Decorators.stats(key='stream')
-    def stream(self, sct=None):
-        image = numpy.array(sct.grab(self.application.monitor))
-        cv2.imshow("stream", image)
+    def stream(self, **kwargs):
+        image = MSSImage(image=self.grab(**kwargs), application=self.application)
+        image = self.detect(model=self.trained_model.model_with_signatures, image=image)
+        image = self.draw_boxes(image=image, category_index=Data.instance.category_index)
+        cv2.imshow("stream", cv2.cvtColor(image, cv2.COLOR_BGR2RGB))
         return image
+
+    @Decorators.stats(key='grab')
+    def grab(self, **kwargs):
+        return kwargs.get('sct').grab(self.application.monitor)
+
+    @Decorators.stats(key='detect')
+    def detect(self, **kwargs):
+        return self.detection.detect(**kwargs)
+
+    @Decorators.stats(key='draw')
+    def draw_boxes(self, **kwargs):
+        return self.detection.draw_boxes(**kwargs)
 
 
 class RecorderStats(Factory):
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
-        """ keep only the latest l latency """
+        """ keep only the latest length latency """
         self.length = kwargs.get('length', 100)
-        self.stats = {'stream': numpy.zeros(self.length)}
+        self.stats = {'stream': numpy.zeros(self.length), 'grab': numpy.zeros(self.length),
+                      'detect': numpy.zeros(self.length), 'draw': numpy.zeros(self.length)}
 
     def update_stats(self, **kwargs):
         key, stat = kwargs.get('key'), kwargs.get('stat')
@@ -89,6 +119,15 @@ class RecorderStats(Factory):
         blank_image = numpy.zeros(shape=[256, 1080, 3], dtype=numpy.uint8)
         # print(blank_image.shape)
         cv2.putText(blank_image, 'latency : %s, mean latency : %s' % (round(self.stats.get('stream')[0]*1000, 2),
-                                                                      round(numpy.mean(self.stats.get('stream'))*1000, 2)), bottomLeftCornerOfText, font,
+                                                                      round(numpy.mean(self.stats.get('stream'))*1000, 2)), (0, 30), font,
+                    fontScale, fontColor, thickness, lineType)
+        cv2.putText(blank_image, 'grab latency : %s, mean latency : %s' % (round(self.stats.get('grab')[0]*1000, 2),
+                                                                      round(numpy.mean(self.stats.get('grab'))*1000, 2)), (0, 60), font,
+                    fontScale, fontColor, thickness, lineType)
+        cv2.putText(blank_image, 'detect latency : %s, mean latency : %s' % (round(self.stats.get('detect')[0]*1000, 2),
+                                                                      round(numpy.mean(self.stats.get('detect'))*1000, 2)), (0, 90), font,
+                    fontScale, fontColor, thickness, lineType)
+        cv2.putText(blank_image, 'draw latency : %s, mean latency : %s' % (round(self.stats.get('draw')[0]*1000, 2),
+                                                                      round(numpy.mean(self.stats.get('draw'))*1000, 2)), (0, 120), font,
                     fontScale, fontColor, thickness, lineType)
         cv2.imshow("Black Blank", blank_image)
