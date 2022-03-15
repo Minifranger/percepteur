@@ -3,14 +3,13 @@ import logging
 
 from percepteur.recorder import Recorder
 from workout.labelimg.data import Data
-from workout.vision.trained_model import TrainedModel
 
 logging.basicConfig(level=logging.INFO)
 
 
 class TestRecorder(unittest.TestCase):
-    dofus = r'C:\Users\Minifranger\Documents\python_scripts\workout\workout\dofus'
-    dofus_graph = r'C:\Users\Minifranger\Documents\python_scripts\workout\workout\dofus\models\ssd_mobilenet_v2_320x320_coco17_tpu-8\graph'
+    dofus = r'C:\Users\Minifranger\Documents\python_scripts\workout\workout\dofus' #TODO : move this percepteur library
+    dofus_graph = r'C:\Users\Minifranger\Documents\python_scripts\workout\workout\dofus\models\ssd_mobilenet_v2_320x320_coco17_tpu-8\graph' #TODO : move this percepteur library
 
     def setUp(self):
         self.data = Data.factory(source=self.dofus)
